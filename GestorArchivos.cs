@@ -131,10 +131,31 @@ namespace Excel
 
         public void Copiar()
         {
-            if (dgvHoja.CurrentCell != null)
-                Clipboard.SetText(dgvHoja.CurrentCell.Value?.ToString() ?? "");
-        }
+            if (dgvHoja.SelectedCells.Count > 0)
+            {
+                var sb = new StringBuilder();
 
+                // Obtener los límites del área seleccionada
+                int minFila = dgvHoja.SelectedCells.Cast<DataGridViewCell>().Min(c => c.RowIndex);
+                int maxFila = dgvHoja.SelectedCells.Cast<DataGridViewCell>().Max(c => c.RowIndex);
+                int minCol = dgvHoja.SelectedCells.Cast<DataGridViewCell>().Min(c => c.ColumnIndex);
+                int maxCol = dgvHoja.SelectedCells.Cast<DataGridViewCell>().Max(c => c.ColumnIndex);
+
+                // Construir el texto para copiar
+                for (int fila = minFila; fila <= maxFila; fila++)
+                {
+                    for (int col = minCol; col <= maxCol; col++)
+                    {
+                        if (col > minCol) sb.Append('\t');
+                        var celda = dgvHoja[col, fila];
+                        sb.Append(celda.Value?.ToString() ?? "");
+                    }
+                    sb.AppendLine();
+                }
+
+                Clipboard.SetText(sb.ToString());
+            }
+        }
         public void Pegar()
         {
             if (dgvHoja.CurrentCell != null && Clipboard.ContainsText())

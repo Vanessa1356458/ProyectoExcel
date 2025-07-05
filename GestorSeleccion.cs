@@ -16,8 +16,10 @@ namespace Excel
         private Point finSeleccion;
         private List<Point> celdasSeleccionadas = new List<Point>();
         private Color colorSeleccionPersonalizada = Color.FromArgb(100, 51, 153, 255);
+        private Color colorResaltadoFormula = Color.FromArgb(150, 173, 216, 230);
 
         public bool SeleccionandoRango => seleccionandoRango;
+        public List<Point> CeldasSeleccionadas => celdasSeleccionadas;
 
         public GestorSeleccion(DataGridView dataGridView)
         {
@@ -33,27 +35,15 @@ namespace Excel
                 {
                     if (Control.ModifierKeys == Keys.Control)
                     {
-                        Point celda = new Point(hit.ColumnIndex, hit.RowIndex);
-                        if (celdasSeleccionadas.Contains(celda))
-                            celdasSeleccionadas.Remove(celda);
-                        else
-                            celdasSeleccionadas.Add(celda);
-
-                        ActualizarSeleccionVisual();
+                        ManipularSeleccionControl(hit.ColumnIndex, hit.RowIndex);
                     }
                     else if (Control.ModifierKeys == Keys.Shift)
                     {
-                        if (dgvHoja.CurrentCell != null)
-                        {
-                            SeleccionarRango(dgvHoja.CurrentCell.ColumnIndex, dgvHoja.CurrentCell.RowIndex,
-                                           hit.ColumnIndex, hit.RowIndex);
-                        }
+                        ManipularSeleccionShift(hit.ColumnIndex, hit.RowIndex);
                     }
                     else
                     {
-                        celdasSeleccionadas.Clear();
-                        inicioSeleccion = new Point(hit.ColumnIndex, hit.RowIndex);
-                        seleccionandoRango = true;
+                        IniciarSeleccionNormal(hit.ColumnIndex, hit.RowIndex);
                     }
                 }
             }
@@ -78,6 +68,33 @@ namespace Excel
             seleccionandoRango = false;
         }
 
+        private void ManipularSeleccionControl(int col, int fila)
+        {
+            Point celda = new Point(col, fila);
+            if (celdasSeleccionadas.Contains(celda))
+                celdasSeleccionadas.Remove(celda);
+            else
+                celdasSeleccionadas.Add(celda);
+
+            ActualizarSeleccionVisual();
+        }
+
+        private void ManipularSeleccionShift(int col, int fila)
+        {
+            if (dgvHoja.CurrentCell != null)
+            {
+                SeleccionarRango(dgvHoja.CurrentCell.ColumnIndex, dgvHoja.CurrentCell.RowIndex,
+                               col, fila);
+            }
+        }
+
+        private void IniciarSeleccionNormal(int col, int fila)
+        {
+            celdasSeleccionadas.Clear();
+            inicioSeleccion = new Point(col, fila);
+            seleccionandoRango = true;
+        }
+
         public void SeleccionarRango(int col1, int fila1, int col2, int fila2)
         {
             dgvHoja.ClearSelection();
@@ -91,7 +108,10 @@ namespace Excel
             {
                 for (int fila = minFila; fila <= maxFila; fila++)
                 {
-                    dgvHoja[col, fila].Selected = true;
+                    if (fila < dgvHoja.RowCount && col < dgvHoja.ColumnCount)
+                    {
+                        dgvHoja[col, fila].Selected = true;
+                    }
                 }
             }
         }
@@ -101,7 +121,10 @@ namespace Excel
             dgvHoja.ClearSelection();
             foreach (Point celda in celdasSeleccionadas)
             {
-                dgvHoja[celda.X, celda.Y].Selected = true;
+                if (celda.Y < dgvHoja.RowCount && celda.X < dgvHoja.ColumnCount)
+                {
+                    dgvHoja[celda.X, celda.Y].Selected = true;
+                }
             }
         }
 
@@ -109,13 +132,15 @@ namespace Excel
         {
             if (dgvHoja.SelectedCells.Count == 0) return "";
 
-            int minCol = dgvHoja.SelectedCells.Cast<DataGridViewCell>().Min(c => c.ColumnIndex);
-            int maxCol = dgvHoja.SelectedCells.Cast<DataGridViewCell>().Max(c => c.ColumnIndex);
-            int minFila = dgvHoja.SelectedCells.Cast<DataGridViewCell>().Min(c => c.RowIndex);
-            int maxFila = dgvHoja.SelectedCells.Cast<DataGridViewCell>().Max(c => c.RowIndex);
+            var celdas = dgvHoja.SelectedCells.Cast<DataGridViewCell>().ToList();
 
-            string inicioRango = $"{(char)('A' + minCol)}{minFila + 1}";
-            string finRango = $"{(char)('A' + maxCol)}{maxFila + 1}";
+            int minCol = celdas.Min(c => c.ColumnIndex);
+            int maxCol = celdas.Max(c => c.ColumnIndex);
+            int minFila = celdas.Min(c => c.RowIndex);
+            int maxFila = celdas.Max(c => c.RowIndex);
+
+            string inicioRango = ConvertirACeldaRef(minCol, minFila);
+            string finRango = ConvertirACeldaRef(maxCol, maxFila);
 
             return minCol == maxCol && minFila == maxFila ? inicioRango : $"{inicioRango}:{finRango}";
         }
@@ -124,13 +149,23 @@ namespace Excel
         {
             if (dgvHoja.SelectedCells.Count > 1)
             {
-                var primeraCelda = dgvHoja.SelectedCells[dgvHoja.SelectedCells.Count - 1];
-                var ultimaCelda = dgvHoja.SelectedCells[0];
+                var celdas = dgvHoja.SelectedCells.Cast<DataGridViewCell>().ToList();
+                var primeraCelda = celdas.OrderBy(c => c.RowIndex).ThenBy(c => c.ColumnIndex).First();
+                var ultimaCelda = celdas.OrderByDescending(c => c.RowIndex).ThenByDescending(c => c.ColumnIndex).First();
 
-                return $"{(char)('A' + primeraCelda.ColumnIndex)}{primeraCelda.RowIndex + 1}:" +
-                       $"{(char)('A' + ultimaCelda.ColumnIndex)}{ultimaCelda.RowIndex + 1}";
+                return $"{ConvertirACeldaRef(primeraCelda.ColumnIndex, primeraCelda.RowIndex)}:" +
+                       $"{ConvertirACeldaRef(ultimaCelda.ColumnIndex, ultimaCelda.RowIndex)}";
             }
-            return "";
+            else if (dgvHoja.CurrentCell != null)
+            {
+                return ConvertirACeldaRef(dgvHoja.CurrentCell.ColumnIndex, dgvHoja.CurrentCell.RowIndex);
+            }
+            return "A1";
+        }
+
+        private string ConvertirACeldaRef(int columna, int fila)
+        {
+            return $"{(char)('A' + columna)}{fila + 1}";
         }
 
         public void InsertarFuncionFormula(TextBox txtFormula, string funcion)
@@ -140,12 +175,58 @@ namespace Excel
                 string rango = ObtenerRangoSeleccionado();
                 txtFormula.Text = $"={funcion}({rango})";
                 txtFormula.Focus();
+                txtFormula.SelectionStart = txtFormula.Text.Length;
             }
             else
             {
                 txtFormula.Text = $"={funcion}(";
                 txtFormula.Focus();
                 txtFormula.SelectionStart = txtFormula.Text.Length;
+            }
+        }
+
+        public void LimpiarSeleccion()
+        {
+            celdasSeleccionadas.Clear();
+            dgvHoja.ClearSelection();
+            seleccionandoRango = false;
+        }
+
+        public bool TieneSeleccionMultiple()
+        {
+            return dgvHoja.SelectedCells.Count > 1 || celdasSeleccionadas.Count > 1;
+        }
+
+        public List<DataGridViewCell> ObtenerCeldasSeleccionadas()
+        {
+            return dgvHoja.SelectedCells.Cast<DataGridViewCell>().ToList();
+        }
+
+        public void SeleccionarCelda(int columna, int fila)
+        {
+            if (fila >= 0 && fila < dgvHoja.RowCount && columna >= 0 && columna < dgvHoja.ColumnCount)
+            {
+                dgvHoja.ClearSelection();
+                dgvHoja.CurrentCell = dgvHoja[columna, fila];
+                dgvHoja[columna, fila].Selected = true;
+            }
+        }
+
+        public void ExpandirSeleccion(int deltaCol, int deltaFila)
+        {
+            if (dgvHoja.CurrentCell != null)
+            {
+                int nuevaCol = Math.Max(0, Math.Min(dgvHoja.ColumnCount - 1, dgvHoja.CurrentCell.ColumnIndex + deltaCol));
+                int nuevaFila = Math.Max(0, Math.Min(dgvHoja.RowCount - 1, dgvHoja.CurrentCell.RowIndex + deltaFila));
+
+                if (Control.ModifierKeys == Keys.Shift)
+                {
+                    SeleccionarRango(dgvHoja.CurrentCell.ColumnIndex, dgvHoja.CurrentCell.RowIndex, nuevaCol, nuevaFila);
+                }
+                else
+                {
+                    SeleccionarCelda(nuevaCol, nuevaFila);
+                }
             }
         }
     }
