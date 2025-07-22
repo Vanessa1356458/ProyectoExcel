@@ -19,14 +19,12 @@ namespace Excel
             get => archivoActual;
             private set => archivoActual = value;
         }
-
         public GestorArchivos(DataGridView dataGridView, Dictionary<string, string> celdasDictionary, Form form)
         {
             dgvHoja = dataGridView;
             celdas = celdasDictionary;
             formularioPrincipal = form;
         }
-
         public void NuevoArchivo()
         {
             dgvHoja.Rows.Clear();
@@ -41,7 +39,6 @@ namespace Excel
             archivoActual = "";
             formularioPrincipal.Text = "Excel Básico - Nuevo archivo";
         }
-
         public void AbrirArchivo()
         {
             using (var openDialog = new OpenFileDialog())
@@ -74,7 +71,6 @@ namespace Excel
                 }
             }
         }
-
         public void GuardarArchivo()
         {
             if (string.IsNullOrEmpty(archivoActual))
@@ -82,7 +78,6 @@ namespace Excel
             else
                 GuardarEnArchivo(archivoActual);
         }
-
         public void GuardarComo()
         {
             using (var saveDialog = new SaveFileDialog())
@@ -97,7 +92,6 @@ namespace Excel
                 }
             }
         }
-
         private void GuardarEnArchivo(string archivo)
         {
             try
@@ -128,25 +122,23 @@ namespace Excel
                 MessageBox.Show($"Error al guardar: {ex.Message}");
             }
         }
-
         public void Copiar()
         {
             if (dgvHoja.SelectedCells.Count > 0)
             {
                 var sb = new StringBuilder();
 
-                // Obtener los límites del área seleccionada
                 int minFila = dgvHoja.SelectedCells.Cast<DataGridViewCell>().Min(c => c.RowIndex);
                 int maxFila = dgvHoja.SelectedCells.Cast<DataGridViewCell>().Max(c => c.RowIndex);
                 int minCol = dgvHoja.SelectedCells.Cast<DataGridViewCell>().Min(c => c.ColumnIndex);
                 int maxCol = dgvHoja.SelectedCells.Cast<DataGridViewCell>().Max(c => c.ColumnIndex);
 
-                // Construir el texto para copiar
                 for (int fila = minFila; fila <= maxFila; fila++)
                 {
                     for (int col = minCol; col <= maxCol; col++)
                     {
                         if (col > minCol) sb.Append('\t');
+
                         var celda = dgvHoja[col, fila];
                         sb.Append(celda.Value?.ToString() ?? "");
                     }
@@ -159,18 +151,65 @@ namespace Excel
         public void Pegar()
         {
             if (dgvHoja.CurrentCell != null && Clipboard.ContainsText())
-                dgvHoja.CurrentCell.Value = Clipboard.GetText();
-        }
+            {
+                string texto = Clipboard.GetText();
 
+                string[] lineas = texto.Split(new string[] { "\r\n", "\n" }, StringSplitOptions.None);
+
+                int filaInicial = dgvHoja.CurrentCell.RowIndex;
+                int colInicial = dgvHoja.CurrentCell.ColumnIndex;
+
+                for (int i = 0; i < lineas.Length; i++)
+                {
+                    if (i == lineas.Length - 1 && string.IsNullOrEmpty(lineas[i]))
+                        continue;
+
+                    string[] columnas = lineas[i].Split('\t');
+
+                    for (int j = 0; j < columnas.Length; j++)
+                    {
+                        int filaDestino = filaInicial + i;
+                        int colDestino = colInicial + j;
+
+                        if (filaDestino < dgvHoja.RowCount && colDestino < dgvHoja.ColumnCount)
+                        {
+                            try
+                            {
+                                dgvHoja[colDestino, filaDestino].Value = columnas[j];
+                            }
+                            catch (Exception ex)
+                            {
+                                System.Diagnostics.Debug.WriteLine($"Error al pegar en celda [{filaDestino}, {colDestino}]: {ex.Message}");
+                            }
+                        }
+                    }
+                }
+            }
+        }
         public void Cortar()
         {
-            if (dgvHoja.CurrentCell != null)
+            if (dgvHoja.SelectedCells.Count > 0)
+            {
+                Copiar();
+
+                foreach (DataGridViewCell celda in dgvHoja.SelectedCells)
+                {
+                    try
+                    {
+                        celda.Value = "";
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Error al cortar celda [{celda.RowIndex}, {celda.ColumnIndex}]: {ex.Message}");
+                    }
+                }
+            }
+            else if (dgvHoja.CurrentCell != null)
             {
                 Clipboard.SetText(dgvHoja.CurrentCell.Value?.ToString() ?? "");
                 dgvHoja.CurrentCell.Value = "";
             }
         }
-
         public void InsertarFila()
         {
             if (dgvHoja.CurrentCell != null)
@@ -182,7 +221,6 @@ namespace Excel
                     dgvHoja.Rows[i].HeaderCell.Value = (i + 1).ToString();
             }
         }
-
         public void InsertarColumna()
         {
             if (dgvHoja.CurrentCell != null)

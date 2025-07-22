@@ -12,6 +12,43 @@ namespace Excel
 {
     public class Formulas
     {
+        public static void InsertarFormula(string tipoFormula, DataGridView dgv)
+        {
+            if (dgv?.CurrentCell != null)
+            {
+                string formula = "";
+                switch (tipoFormula)
+                {
+                    case "SUMA":
+                        formula = "=SUMA(";
+                        break;
+                    case "PROMEDIO":
+                        formula = "=PROMEDIO(";
+                        break;
+                    case "MAX":
+                        formula = "=MAX(";
+                        break;
+                    case "MIN":
+                        formula = "=MIN(";
+                        break;
+                    case "COUNT":
+                        formula = "=COUNT(";
+                        break;
+                }
+
+                dgv.CurrentCell.Tag = "FORMULA:" + formula;
+                dgv.CurrentCell.Value = formula;
+
+                var form = dgv.FindForm() as Form1;
+                if (form != null && form.TxtFormula != null)
+                {
+                    form.TxtFormula.Text = formula;
+                    form.TxtFormula.Focus();
+                    form.TxtFormula.SelectionStart = formula.Length;
+                }
+                dgv.BeginEdit(true);
+            }
+        }
         public static double Evaluar(string formula, DataGridView dgv)
         {
             try

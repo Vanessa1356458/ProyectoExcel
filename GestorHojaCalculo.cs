@@ -24,7 +24,6 @@ namespace Excel
             gestorSeleccion = gestorSel;
             celdas = new Dictionary<string, string>();
 
-            // Suscribirse a eventos
             txtFormula.KeyDown += TxtFormula_KeyDown;
             dgvHoja.CellClick += DgvHoja_CellClick;
         }
@@ -52,9 +51,9 @@ namespace Excel
             string valor = txtFormula.Text;
             int fila = dgvHoja.CurrentCell.RowIndex;
             int columna = dgvHoja.CurrentCell.ColumnIndex;
-            string celda = ObtenerNombreCelda(columna, fila);
-
-            celdas[celda] = valor;
+            string celdaKey = ObtenerNombreCelda(columna, fila);
+            
+            celdas[celdaKey] = valor;
 
             if (valor.StartsWith("="))
             {

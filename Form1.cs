@@ -24,12 +24,10 @@ namespace Excel
         private Label lblCelda;
         private Dictionary<string, string> celdas;
         private string archivoActual = "";
-
         private GestorHojaCalculo gestorHoja;
         private GestorArchivos gestorArchivos;
         private GestorSeleccion gestorSeleccion;
         private BarraEstado barraEstado;
-
         private bool editandoEnBarraFormulas = false;
         public Form1()
         {
@@ -77,6 +75,8 @@ namespace Excel
             barraEstado = new BarraEstado(dgvHoja);
             this.Controls.Add(barraEstado.StatusStrip);
             barraEstado.StatusStrip.Dock = DockStyle.Bottom;
+            gestorSeleccion = new GestorSeleccion(dgvHoja);
+
         }
         private void CrearMenu()
         {
@@ -102,11 +102,11 @@ namespace Excel
             menuInsertar.DropDownItems.Add("Columna", null, (s, e) => gestorArchivos.InsertarColumna());
 
             var menuFormulas = new ToolStripMenuItem("Fórmulas");
-            menuFormulas.DropDownItems.Add("Suma", null, (s, e) => gestorHoja?.InsertarFormula("SUMA"));
-            menuFormulas.DropDownItems.Add("Promedio", null, (s, e) => gestorHoja?.InsertarFormula("PROMEDIO"));
-            menuFormulas.DropDownItems.Add("Máximo", null, (s, e) => gestorHoja?.InsertarFormula("MAX"));
-            menuFormulas.DropDownItems.Add("Mínimo", null, (s, e) => gestorHoja?.InsertarFormula("MIN"));
-            menuFormulas.DropDownItems.Add("Contar", null, (s, e) => gestorHoja?.InsertarFormula("COUNT"));
+            menuFormulas.DropDownItems.Add("Suma", null, (s, e) => Formulas.InsertarFormula("SUMA", dgvHoja));
+            menuFormulas.DropDownItems.Add("Promedio", null, (s, e) => Formulas.InsertarFormula("PROMEDIO", dgvHoja));
+            menuFormulas.DropDownItems.Add("Máximo", null, (s, e) => Formulas.InsertarFormula("MAX", dgvHoja));
+            menuFormulas.DropDownItems.Add("Mínimo", null, (s, e) => Formulas.InsertarFormula("MIN", dgvHoja));
+            menuFormulas.DropDownItems.Add("Contar", null, (s, e) => Formulas.InsertarFormula("COUNT", dgvHoja));
 
             menuStrip.Items.AddRange(new ToolStripItem[] { menuArchivo, menuEdicion, menuInsertar, menuFormulas });
             this.MainMenuStrip = menuStrip;
@@ -260,19 +260,22 @@ namespace Excel
             dgvHoja.MouseDown += (s, e) => gestorSeleccion.ManipularMouseDown(e);
             dgvHoja.MouseMove += (s, e) => gestorSeleccion.ManipularMouseMove(e);
             dgvHoja.MouseUp += (s, e) => gestorSeleccion.ManipularMouseUp(e);
-        }
 
+            dgvHoja.Paint += DgvHoja_Paint;
+        }
+        private void DgvHoja_Paint(object sender, PaintEventArgs e)
+        {
+            gestorSeleccion.DibujarMarcoSeleccion(e.Graphics);
+        }
         private void TxtFormula_Enter(object sender, EventArgs e)
         {
             editandoEnBarraFormulas = true;
             txtFormula.SelectAll();
         }
-
         private void TxtFormula_Leave(object sender, EventArgs e)
         {
             editandoEnBarraFormulas = false;
         }
-
         private void TxtFormula_KeyDown(object sender, KeyEventArgs e)
         {
             if (e.KeyCode == Keys.Enter)
@@ -292,20 +295,39 @@ namespace Excel
                 e.Handled = true;
             }
         }
-
         private void ProcesarContenidoCelda()
         {
             var celda = dgvHoja.CurrentCell;
             string contenido = txtFormula.Text;
             string celdaRef = $"{(char)('A' + celda.ColumnIndex)}{celda.RowIndex + 1}";
 
-            celda.Value = contenido;
             celdas[celdaRef] = contenido;
 
-            // Forzar el procesamiento
+            if (contenido.StartsWith("="))
+            {
+                double resultado = Formulas.Evaluar(contenido, dgvHoja);
+                celda.Tag = contenido; 
+
+                if (double.IsNaN(resultado))
+                {
+                    celda.Value = "#ERROR";
+                    celda.Style.ForeColor = Color.Red;
+                }
+                else
+                {
+                    celda.Value = resultado;
+                    celda.Style.ForeColor = Color.Black;
+                }
+            }
+            else
+            {
+                celda.Value = contenido;
+                celda.Tag = null;
+                celda.Style.ForeColor = Color.Black;
+            }
+
             dgvHoja.EndEdit();
         }
-
         private void MoverACeldaSiguiente()
         {
             var celda = dgvHoja.CurrentCell;
@@ -318,7 +340,6 @@ namespace Excel
                 dgvHoja.CurrentCell.Selected = true;
             }
         }
-
         private void CancelarEdicion()
         {
             if (dgvHoja.CurrentCell != null)
@@ -330,7 +351,6 @@ namespace Excel
                 dgvHoja.CurrentCell.Selected = true;
             }
         }
-
         private string ObtenerContenidoOriginalCelda()
         {
             var celda = dgvHoja.CurrentCell;
@@ -343,7 +363,6 @@ namespace Excel
             else
                 return celda.Value?.ToString() ?? "";
         }
-
         private void DgvHoja_CellClick(object sender, DataGridViewCellEventArgs e)
         {
             if (e.RowIndex >= 0 && e.ColumnIndex >= 0)
@@ -351,17 +370,14 @@ namespace Excel
                 ActualizarBarraFormulas();
             }
         }
-
         private void DgvHoja_CellEnter(object sender, DataGridViewCellEventArgs e)
         {
-            // CRÍTICO: Solo actualizar la barra de fórmulas, NO poner el foco ahí
             if (!editandoEnBarraFormulas)
             {
                 ActualizarBarraFormulas();
                 barraEstado.Actualizar();
             }
         }
-
         private void DgvHoja_CellBeginEdit(object sender, DataGridViewCellCancelEventArgs e)
         {
             var celda = dgvHoja[e.ColumnIndex, e.RowIndex];
@@ -370,7 +386,6 @@ namespace Excel
                 celda.Value = formula;
             }
         }
-
         private void DgvHoja_CellEndEdit(object sender, DataGridViewCellEventArgs e)
         {
             if (e.RowIndex < 0 || e.ColumnIndex < 0) return;
@@ -404,7 +419,6 @@ namespace Excel
 
             ActualizarBarraFormulas();
         }
-
         private void DgvHoja_SelectionChanged(object sender, EventArgs e)
         {
             string rangoSeleccionado = gestorSeleccion.ObtenerRangoSeleccionadoParaLabel();
@@ -414,7 +428,6 @@ namespace Excel
             }
             barraEstado.Actualizar();
         }
-
         private void DgvHoja_KeyDown(object sender, KeyEventArgs e)
         {
             if (e.KeyCode == Keys.Delete || e.KeyCode == Keys.Back)
@@ -441,7 +454,6 @@ namespace Excel
                 e.Handled = true;
             }
         }
-
         private void LimpiarCeldasSeleccionadas()
         {
             if (gestorSeleccion.TieneSeleccionMultiple())
@@ -460,7 +472,12 @@ namespace Excel
             ActualizarBarraFormulas();
             barraEstado.Actualizar();
         }
-
+        public void ActualizarBarraFormulasConTexto(string texto)
+        {
+            txtFormula.Text = texto;
+            txtFormula.Focus();
+            txtFormula.SelectionStart = texto.Length;
+        }
         private void LimpiarCeldaIndividual(DataGridViewCell celda)
         {
             string celdaRef = $"{(char)('A' + celda.ColumnIndex)}{celda.RowIndex + 1}";
@@ -472,7 +489,6 @@ namespace Excel
             if (celdas.ContainsKey(celdaRef))
                 celdas.Remove(celdaRef);
         }
-
         private void ActualizarBarraFormulas()
         {
             if (dgvHoja.CurrentCell != null)
@@ -484,14 +500,12 @@ namespace Excel
                 txtFormula.Text = ObtenerContenidoOriginalCelda();
             }
         }
-
         public void ActualizarTitulo(string nombreArchivo = null)
         {
             this.Text = string.IsNullOrEmpty(nombreArchivo) ?
                 "Excel Básico - Nuevo archivo" :
                 $"Excel Básico - {nombreArchivo}";
         }
-
         public void LimpiarHoja()
         {
             dgvHoja.Rows.Clear();
@@ -499,7 +513,6 @@ namespace Excel
             txtFormula.Text = "";
             lblCelda.Text = "A1";
 
-            // Recrear las filas
             dgvHoja.RowCount = 100;
             for (int i = 0; i < dgvHoja.RowCount; i++)
             {
