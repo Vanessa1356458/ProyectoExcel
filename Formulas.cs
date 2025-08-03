@@ -79,7 +79,6 @@ namespace Excel
                               MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
-
         private static DataGridViewCell EncontrarCeldaDestino(DataGridView dgv, string rango)
         {
             try
@@ -125,12 +124,10 @@ namespace Excel
 
             return dgv.CurrentCell;
         }
-
         private static string ConvertirACeldaRef(int columna, int fila)
         {
             return $"{(char)('A' + columna)}{fila + 1}";
         }
-
         public static double Evaluar(string formula, DataGridView dgv)
         {
             try
@@ -177,7 +174,6 @@ namespace Excel
                 return double.NaN;
             }
         }
-
         private static double EvaluarDivision(string formula, DataGridView dgv)
         {
             try
@@ -236,7 +232,6 @@ namespace Excel
                 return double.NaN;
             }
         }
-
         private static double EvaluarPromedio(string formula, DataGridView dgv)
         {
             try
@@ -270,7 +265,6 @@ namespace Excel
                 return 0;
             }
         }
-
         private static double EvaluarProducto(string formula, DataGridView dgv)
         {
             try
@@ -316,7 +310,6 @@ namespace Excel
                 return double.NaN;
             }
         }
-
         private static double EvaluarCount(string formula, DataGridView dgv)
         {
             try
@@ -335,7 +328,6 @@ namespace Excel
                 return 0;
             }
         }
-
         private static double ConvertirTextoANumero(string texto)
         {
             if (string.IsNullOrWhiteSpace(texto))
@@ -351,7 +343,6 @@ namespace Excel
 
             return 0;
         }
-
         private static string ReemplazarReferencias(string formula, DataGridView dgv)
         {
             var regex = new Regex(@"[A-Z]+\d+");
@@ -378,7 +369,6 @@ namespace Excel
             System.Diagnostics.Debug.WriteLine($"Formula final: {formula}");
             return formula;
         }
-
         private static double ObtenerValorCelda(string referencia, DataGridView dgv)
         {
             try
@@ -430,7 +420,6 @@ namespace Excel
                 return 0;
             }
         }
-
         private static double EvaluarSuma(string formula, DataGridView dgv)
         {
             try
@@ -447,7 +436,6 @@ namespace Excel
                 return 0;
             }
         }
-
         private static double EvaluarResta(string formula, DataGridView dgv)
         {
             try
@@ -489,7 +477,6 @@ namespace Excel
                 return double.NaN;
             }
         }
-
         private static double EvaluarMax(string formula, DataGridView dgv)
         {
             try
@@ -519,7 +506,6 @@ namespace Excel
                 return double.NaN;
             }
         }
-
         private static double EvaluarMin(string formula, DataGridView dgv)
         {
             try
@@ -553,7 +539,6 @@ namespace Excel
                 return double.NaN;
             }
         }
-
         private static List<double> ObtenerValoresValidosParaOperacion(string rango, DataGridView dgv)
         {
             var valoresValidos = new List<double>();
@@ -636,7 +621,6 @@ namespace Excel
 
             return valoresValidos;
         }
-
         private static List<double> ObtenerValoresRango(string rango, DataGridView dgv)
         {
             var valores = new List<double>();
@@ -771,7 +755,6 @@ namespace Excel
                 return false;
             }
         }
-
         private static string ColumnToLetter(int col)
         {
             string result = "";
@@ -782,7 +765,6 @@ namespace Excel
             }
             return result;
         }
-
         private static string ExtraerRango(string formula)
         {
             try
@@ -810,7 +792,6 @@ namespace Excel
                 return string.Empty;
             }
         }
-
         private static double EvaluarExpresion(string expresion)
         {
             try
