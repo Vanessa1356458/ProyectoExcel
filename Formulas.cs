@@ -112,7 +112,7 @@ namespace Excel
                 {
                     if (ParseCelda(rango, out int col, out int fila))
                     {
-                        fila--; // Convertir a índice base 0
+                        fila--; 
                         int filaDestino = Math.Min(fila + 1, dgv.Rows.Count - 1);
                         return dgv[col, filaDestino];
                     }
@@ -123,7 +123,6 @@ namespace Excel
                 System.Diagnostics.Debug.WriteLine($"Error en EncontrarCeldaDestino: {ex.Message}");
             }
 
-            // Por defecto, usar la celda actual
             return dgv.CurrentCell;
         }
 
@@ -218,7 +217,7 @@ namespace Excel
                 {
                     System.Diagnostics.Debug.WriteLine($"DIVIDIR: Dividiendo {resultado} / {valoresValidos[i]}");
 
-                    if (Math.Abs(valoresValidos[i]) < double.Epsilon) // Comparación más precisa para cero
+                    if (Math.Abs(valoresValidos[i]) < double.Epsilon) 
                     {
                         System.Diagnostics.Debug.WriteLine("DIVIDIR: División por cero detectada");
                         return double.NaN;
@@ -824,7 +823,6 @@ namespace Excel
                     return 0;
                 }
 
-                // Verificar división por cero de manera más robusta
                 if (ContieneDivisionPorCero(expresion))
                 {
                     System.Diagnostics.Debug.WriteLine("División por cero detectada en expresión");
@@ -854,12 +852,10 @@ namespace Excel
                 return double.NaN;
             }
         }
-
         private static bool ContieneDivisionPorCero(string expresion)
         {
             try
             {
-                // Buscar patrones de división por cero
                 var patronesDivisionCero = new[]
                 {
                 @"/\s*0+(\s|$|\+|\-|\*|/)",
@@ -875,7 +871,6 @@ namespace Excel
                     }
                 }
 
-                // Verificación adicional: dividir la expresión por operadores de división
                 string[] partes = expresion.Split('/');
                 if (partes.Length > 1)
                 {
@@ -883,7 +878,6 @@ namespace Excel
                     {
                         string divisor = partes[i].Trim();
 
-                        // Extraer solo la parte numérica al inicio del divisor
                         var match = Regex.Match(divisor, @"^[^+\-*/()]+");
                         if (match.Success)
                         {
