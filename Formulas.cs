@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Drawing;
 using System.Globalization;
 using System.Linq;
 using System.Text;
@@ -14,64 +15,159 @@ namespace Excel
     {
         public static void InsertarFormula(string tipoFormula, DataGridView dgv)
         {
-            if (dgv?.CurrentCell != null)
+            try
             {
-                string formula = "";
-                switch (tipoFormula)
+                System.Diagnostics.Debug.WriteLine($"=== INSERTAR FORMULA: {tipoFormula} ===");
+
+                string rangoSeleccionado = new GestorSeleccion(dgv).ObtenerRangoSeleccionado();
+
+                if (string.IsNullOrEmpty(rangoSeleccionado) || rangoSeleccionado.Trim() == "")
                 {
-                    case "SUMA":
-                        formula = "=SUMA(";
-                        break;
-                    case "PROMEDIO":
-                        formula = "=PROMEDIO(";
-                        break;
-                    case "MAX":
-                        formula = "=MAX(";
-                        break;
-                    case "MIN":
-                        formula = "=MIN(";
-                        break;
-                    case "COUNT":
-                        formula = "=COUNT(";
-                        break;
+                    rangoSeleccionado = $"{ConvertirACeldaRef(dgv.CurrentCell.ColumnIndex, dgv.CurrentCell.RowIndex)}";
+                    System.Diagnostics.Debug.WriteLine($"Sin selección válida, usando celda actual: {rangoSeleccionado}");
+                }
+                else
+                {
+                    rangoSeleccionado = rangoSeleccionado.Trim();
+                    System.Diagnostics.Debug.WriteLine($"Rango seleccionado limpio: '{rangoSeleccionado}'");
                 }
 
-                dgv.CurrentCell.Tag = "FORMULA:" + formula;
-                dgv.CurrentCell.Value = formula;
+                System.Diagnostics.Debug.WriteLine($"Rango final a usar: {rangoSeleccionado}");
 
-                var form = dgv.FindForm() as Form1;
-                if (form != null && form.TxtFormula != null)
+                string formulaCompleta = $"={tipoFormula}({rangoSeleccionado})";
+                System.Diagnostics.Debug.WriteLine($"Fórmula completa: {formulaCompleta}");
+
+                var celdaDestino = EncontrarCeldaDestino(dgv, rangoSeleccionado);
+
+                double resultado = Evaluar(formulaCompleta, dgv);
+                System.Diagnostics.Debug.WriteLine($"Resultado de evaluación: {resultado}");
+
+                if (!double.IsNaN(resultado) && !double.IsInfinity(resultado))
                 {
-                    form.TxtFormula.Text = formula;
-                    form.TxtFormula.Focus();
-                    form.TxtFormula.SelectionStart = formula.Length;
+                    celdaDestino.Value = resultado;
+                    celdaDestino.Tag = formulaCompleta;
+                    celdaDestino.Style.ForeColor = Color.Black;
                 }
-                dgv.BeginEdit(true);
+                else
+                {
+                    if (tipoFormula.ToUpper().Contains("DIVIDIR") ||
+                        tipoFormula.ToUpper().Contains("DIVISION") ||
+                        tipoFormula.ToUpper().Contains("DIVIDE"))
+                    {
+                        MessageBox.Show("No es válido dividir por cero.", "Error de División",
+                                      MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        celdaDestino.Value = "#DIV/0!";
+                        System.Diagnostics.Debug.WriteLine("Error de división por cero mostrado");
+                    }
+                    else
+                    {
+                        celdaDestino.Value = "#ERROR";
+                        System.Diagnostics.Debug.WriteLine("Error genérico mostrado");
+                    }
+
+                    celdaDestino.Style.ForeColor = Color.Red;
+                    celdaDestino.Tag = formulaCompleta;
+                }
+
+                dgv.CurrentCell = celdaDestino;
+                dgv.InvalidateCell(celdaDestino);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"ERROR en InsertarFormula: {ex.Message}");
+                MessageBox.Show($"Error al insertar fórmula: {ex.Message}", "Error",
+                              MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
+
+        private static DataGridViewCell EncontrarCeldaDestino(DataGridView dgv, string rango)
+        {
+            try
+            {
+                if (rango.Contains(":"))
+                {
+                    var partes = rango.Split(':');
+                    string celdaFin = partes[1].Trim();
+
+                    if (ParseCelda(celdaFin, out int col, out int fila))
+                    {
+                        fila--; 
+                        int filaDestino = fila + 1;
+                        while (filaDestino < dgv.Rows.Count &&
+                               dgv[col, filaDestino].Value != null &&
+                               !string.IsNullOrWhiteSpace(dgv[col, filaDestino].Value.ToString()))
+                        {
+                            filaDestino++;
+                        }
+
+                        if (filaDestino >= dgv.Rows.Count)
+                        {
+                            filaDestino = dgv.Rows.Count - 1;
+                        }
+
+                        return dgv[col, filaDestino];
+                    }
+                }
+                else
+                {
+                    if (ParseCelda(rango, out int col, out int fila))
+                    {
+                        fila--; // Convertir a índice base 0
+                        int filaDestino = Math.Min(fila + 1, dgv.Rows.Count - 1);
+                        return dgv[col, filaDestino];
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error en EncontrarCeldaDestino: {ex.Message}");
+            }
+
+            // Por defecto, usar la celda actual
+            return dgv.CurrentCell;
+        }
+
+        private static string ConvertirACeldaRef(int columna, int fila)
+        {
+            return $"{(char)('A' + columna)}{fila + 1}";
+        }
+
         public static double Evaluar(string formula, DataGridView dgv)
         {
             try
             {
-                if (string.IsNullOrWhiteSpace(formula)) return 0;
+                if (string.IsNullOrWhiteSpace(formula))
+                {
+                    System.Diagnostics.Debug.WriteLine("Fórmula vacía, retornando 0");
+                    return 0;
+                }
 
                 if (!formula.StartsWith("="))
                 {
+                    System.Diagnostics.Debug.WriteLine("No es fórmula, convirtiendo a número");
                     return ConvertirTextoANumero(formula);
                 }
 
                 formula = formula.Substring(1).Trim().ToUpper();
+                System.Diagnostics.Debug.WriteLine($"Fórmula procesada: '{formula}'");
 
                 if (formula.StartsWith("SUMA(") || formula.StartsWith("SUM("))
                     return EvaluarSuma(formula, dgv);
                 if (formula.StartsWith("RESTA(") || formula.StartsWith("SUBTRACT("))
                     return EvaluarResta(formula, dgv);
+                if (formula.StartsWith("PRODUCTO(") || formula.StartsWith("MULTIPLICAR("))
+                    return EvaluarProducto(formula, dgv);
+                if (formula.StartsWith("DIVIDIR(") || formula.StartsWith("DIVISION("))
+                    return EvaluarDivision(formula, dgv);
+
                 if (formula.StartsWith("PROMEDIO(") || formula.StartsWith("AVERAGE("))
                     return EvaluarPromedio(formula, dgv);
                 if (formula.StartsWith("MAX("))
                     return EvaluarMax(formula, dgv);
                 if (formula.StartsWith("MIN("))
                     return EvaluarMin(formula, dgv);
+                if (formula.StartsWith("COUNT("))
+                    return EvaluarCount(formula, dgv);
 
                 formula = ReemplazarReferencias(formula, dgv);
                 return EvaluarExpresion(formula);
@@ -82,6 +178,165 @@ namespace Excel
                 return double.NaN;
             }
         }
+
+        private static double EvaluarDivision(string formula, DataGridView dgv)
+        {
+            try
+            {
+                System.Diagnostics.Debug.WriteLine($"=== INICIO EvaluarDivision: '{formula}' ===");
+
+                string rango = ExtraerRango(formula);
+                System.Diagnostics.Debug.WriteLine($"Rango extraído: '{rango}'");
+
+                if (string.IsNullOrEmpty(rango))
+                {
+                    System.Diagnostics.Debug.WriteLine("DIVIDIR: Rango vacío o inválido");
+                    return double.NaN;
+                }
+
+                var valoresValidos = ObtenerValoresValidosParaOperacion(rango, dgv);
+
+                System.Diagnostics.Debug.WriteLine($"DIVIDIR: Valores válidos: [{string.Join(", ", valoresValidos)}]");
+
+                if (!valoresValidos.Any())
+                {
+                    System.Diagnostics.Debug.WriteLine("DIVIDIR: No hay valores válidos");
+                    return double.NaN;
+                }
+
+                if (valoresValidos.Count == 1)
+                {
+                    double valorUnico = valoresValidos[0];
+                    System.Diagnostics.Debug.WriteLine($"DIVIDIR: Solo un valor: {valorUnico}");
+                    return valorUnico;
+                }
+
+                double resultado = valoresValidos[0];
+                System.Diagnostics.Debug.WriteLine($"DIVIDIR: Valor inicial: {resultado}");
+
+                for (int i = 1; i < valoresValidos.Count; i++)
+                {
+                    System.Diagnostics.Debug.WriteLine($"DIVIDIR: Dividiendo {resultado} / {valoresValidos[i]}");
+
+                    if (Math.Abs(valoresValidos[i]) < double.Epsilon) // Comparación más precisa para cero
+                    {
+                        System.Diagnostics.Debug.WriteLine("DIVIDIR: División por cero detectada");
+                        return double.NaN;
+                    }
+
+                    resultado /= valoresValidos[i];
+                    System.Diagnostics.Debug.WriteLine($"DIVIDIR: Resultado parcial: {resultado}");
+                }
+
+                System.Diagnostics.Debug.WriteLine($"DIVIDIR: Resultado final = {resultado}");
+                return resultado;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"ERROR en EvaluarDivision: {ex.Message}");
+                return double.NaN;
+            }
+        }
+
+        private static double EvaluarPromedio(string formula, DataGridView dgv)
+        {
+            try
+            {
+                System.Diagnostics.Debug.WriteLine($"=== INICIO EvaluarPromedio: '{formula}' ===");
+
+                string rango = ExtraerRango(formula);
+                if (string.IsNullOrEmpty(rango))
+                {
+                    System.Diagnostics.Debug.WriteLine("PROMEDIO: Rango vacío o inválido");
+                    return 0;
+                }
+
+                var valoresValidos = ObtenerValoresValidosParaOperacion(rango, dgv);
+
+                System.Diagnostics.Debug.WriteLine($"PROMEDIO: Valores válidos: [{string.Join(", ", valoresValidos)}]");
+
+                if (!valoresValidos.Any())
+                {
+                    System.Diagnostics.Debug.WriteLine("PROMEDIO: No hay valores válidos, retornando 0");
+                    return 0;
+                }
+
+                double resultado = valoresValidos.Average();
+                System.Diagnostics.Debug.WriteLine($"PROMEDIO: Resultado final = {resultado}");
+                return resultado;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error en EvaluarPromedio: {ex.Message}");
+                return 0;
+            }
+        }
+
+        private static double EvaluarProducto(string formula, DataGridView dgv)
+        {
+            try
+            {
+                string rango = ExtraerRango(formula);
+                if (string.IsNullOrEmpty(rango))
+                {
+                    System.Diagnostics.Debug.WriteLine("PRODUCTO: Rango vacío o inválido");
+                    return double.NaN;
+                }
+
+                var valoresValidos = ObtenerValoresValidosParaOperacion(rango, dgv);
+
+                if (!valoresValidos.Any())
+                {
+                    System.Diagnostics.Debug.WriteLine("PRODUCTO: No hay valores numéricos válidos");
+                    return 0;
+                }
+
+                if (valoresValidos.All(v => v == 0))
+                {
+                    System.Diagnostics.Debug.WriteLine("PRODUCTO: Todos los valores son cero, resultado = 0");
+                    return 0;
+                }
+
+                double producto = 1;
+                foreach (var valor in valoresValidos)
+                {
+                    producto *= valor;
+                    if (double.IsInfinity(producto))
+                    {
+                        System.Diagnostics.Debug.WriteLine("PRODUCTO: Overflow detectado");
+                        return double.PositiveInfinity;
+                    }
+                }
+
+                System.Diagnostics.Debug.WriteLine($"PRODUCTO: valores=[{string.Join(",", valoresValidos)}], resultado={producto}");
+                return producto;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error en EvaluarProducto: {ex.Message}");
+                return double.NaN;
+            }
+        }
+
+        private static double EvaluarCount(string formula, DataGridView dgv)
+        {
+            try
+            {
+                var rango = ExtraerRango(formula);
+                var valoresValidos = ObtenerValoresValidosParaOperacion(rango, dgv);
+
+                int contador = valoresValidos.Count;
+
+                System.Diagnostics.Debug.WriteLine($"COUNT: rango={rango}, valores numéricos válidos={contador}");
+                return contador;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error en EvaluarCount: {ex.Message}");
+                return 0;
+            }
+        }
+
         private static double ConvertirTextoANumero(string texto)
         {
             if (string.IsNullOrWhiteSpace(texto))
@@ -97,6 +352,7 @@ namespace Excel
 
             return 0;
         }
+
         private static string ReemplazarReferencias(string formula, DataGridView dgv)
         {
             var regex = new Regex(@"[A-Z]+\d+");
@@ -123,48 +379,68 @@ namespace Excel
             System.Diagnostics.Debug.WriteLine($"Formula final: {formula}");
             return formula;
         }
+
         private static double ObtenerValorCelda(string referencia, DataGridView dgv)
         {
             try
             {
                 if (string.IsNullOrWhiteSpace(referencia) || referencia.Length < 2)
+                {
+                    System.Diagnostics.Debug.WriteLine($"ObtenerValorCelda: Referencia inválida '{referencia}'");
                     return 0;
+                }
 
                 if (!ParseCelda(referencia, out int col, out int fila))
+                {
+                    System.Diagnostics.Debug.WriteLine($"ObtenerValorCelda: No se pudo parsear '{referencia}'");
                     return 0;
+                }
 
-                fila--; 
+                fila--;
 
                 if (col < 0 || col >= dgv.Columns.Count || fila < 0 || fila >= dgv.Rows.Count)
+                {
+                    System.Diagnostics.Debug.WriteLine($"ObtenerValorCelda: Celda {referencia} fuera de rango [Col:{col}, Fila:{fila}]");
                     return 0;
+                }
 
                 var celda = dgv[col, fila];
+
                 if (celda.Value == null)
+                {
+                    System.Diagnostics.Debug.WriteLine($"ObtenerValorCelda: Celda {referencia} está vacía");
                     return 0;
+                }
 
                 string valorTexto = celda.Value.ToString();
 
                 if (celda.Tag is string tag && tag.StartsWith("="))
                 {
-                    return ConvertirTextoANumero(valorTexto);
+                    double resultado = ConvertirTextoANumero(valorTexto);
+                    System.Diagnostics.Debug.WriteLine($"ObtenerValorCelda: {referencia} (fórmula) = {resultado}");
+                    return resultado;
                 }
 
-                return ConvertirTextoANumero(valorTexto);
+                double valor = ConvertirTextoANumero(valorTexto);
+                System.Diagnostics.Debug.WriteLine($"ObtenerValorCelda: {referencia} = '{valorTexto}' -> {valor}");
+                return valor;
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Error en ObtenerValorCelda({referencia}): {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"ERROR en ObtenerValorCelda({referencia}): {ex.Message}");
                 return 0;
             }
         }
+
         private static double EvaluarSuma(string formula, DataGridView dgv)
         {
             try
             {
                 var rango = ExtraerRango(formula);
                 var valores = ObtenerValoresRango(rango, dgv);
-                System.Diagnostics.Debug.WriteLine($"SUMA: rango={rango}, valores=[{string.Join(",", valores)}], resultado={valores.Sum()}");
-                return valores.Sum();
+                double resultado = valores.Sum();
+                System.Diagnostics.Debug.WriteLine($"SUMA: rango={rango}, valores=[{string.Join(",", valores)}], resultado={resultado}");
+                return resultado;
             }
             catch (Exception ex)
             {
@@ -172,88 +448,196 @@ namespace Excel
                 return 0;
             }
         }
+
         private static double EvaluarResta(string formula, DataGridView dgv)
         {
             try
             {
-                var rango = ExtraerRango(formula);
-                var valores = ObtenerValoresRango(rango, dgv);
-
-                if (!valores.Any())
+                string rango = ExtraerRango(formula);
+                if (string.IsNullOrEmpty(rango))
                 {
-                    System.Diagnostics.Debug.WriteLine("RESTA: No hay valores para procesar");
+                    System.Diagnostics.Debug.WriteLine("RESTA: Rango vacío o inválido");
+                    return double.NaN;
+                }
+
+                var valoresValidos = ObtenerValoresValidosParaOperacion(rango, dgv);
+
+                if (!valoresValidos.Any())
+                {
+                    System.Diagnostics.Debug.WriteLine("RESTA: No hay valores numéricos válidos");
                     return 0;
                 }
 
-                if (valores.Count == 1)
+                if (valoresValidos.Count == 1)
                 {
-                    System.Diagnostics.Debug.WriteLine($"RESTA: Solo un valor {valores[0]}");
-                    return valores[0];
+                    double resultado = valoresValidos[0];
+                    System.Diagnostics.Debug.WriteLine($"RESTA: Un solo valor, resultado={resultado}");
+                    return resultado;
                 }
 
-                double resultado = valores[0];
-                System.Diagnostics.Debug.WriteLine($"RESTA: Valor inicial = {resultado}");
-
-                for (int i = 1; i < valores.Count; i++)
+                double resta = valoresValidos[0];
+                for (int i = 1; i < valoresValidos.Count; i++)
                 {
-                    System.Diagnostics.Debug.WriteLine($"RESTA: {resultado} - {valores[i]} = {resultado - valores[i]}");
-                    resultado -= valores[i];
+                    resta -= valoresValidos[i];
                 }
 
-                System.Diagnostics.Debug.WriteLine($"RESTA: rango={rango}, valores=[{string.Join(",", valores)}], resultado={resultado}");
-                return resultado;
+                System.Diagnostics.Debug.WriteLine($"RESTA: valores=[{string.Join(",", valoresValidos)}], resultado={resta}");
+                return resta;
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error en EvaluarResta: {ex.Message}");
-                return 0;
+                return double.NaN;
             }
         }
-        private static double EvaluarPromedio(string formula, DataGridView dgv)
-        {
-            try
-            {
-                var valores = ObtenerValoresRango(ExtraerRango(formula), dgv);
-                double resultado = valores.Any() ? valores.Average() : 0;
-                System.Diagnostics.Debug.WriteLine($"PROMEDIO: valores=[{string.Join(",", valores)}], resultado={resultado}");
-                return resultado;
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error en EvaluarPromedio: {ex.Message}");
-                return 0;
-            }
-        }
+
         private static double EvaluarMax(string formula, DataGridView dgv)
         {
             try
             {
-                var valores = ObtenerValoresRango(ExtraerRango(formula), dgv);
-                double resultado = valores.Any() ? valores.Max() : 0;
-                System.Diagnostics.Debug.WriteLine($"MAX: valores=[{string.Join(",", valores)}], resultado={resultado}");
+                string rango = ExtraerRango(formula);
+                if (string.IsNullOrEmpty(rango))
+                {
+                    System.Diagnostics.Debug.WriteLine("MAX: Rango vacío o inválido");
+                    return double.NaN;
+                }
+
+                var valoresValidos = ObtenerValoresValidosParaOperacion(rango, dgv);
+
+                if (!valoresValidos.Any())
+                {
+                    System.Diagnostics.Debug.WriteLine("MAX: No hay valores numéricos válidos");
+                    return 0;
+                }
+
+                double resultado = valoresValidos.Max();
+                System.Diagnostics.Debug.WriteLine($"MAX: valores=[{string.Join(",", valoresValidos)}], resultado={resultado}");
                 return resultado;
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error en EvaluarMax: {ex.Message}");
-                return 0;
+                return double.NaN;
             }
         }
+
         private static double EvaluarMin(string formula, DataGridView dgv)
         {
             try
             {
-                var valores = ObtenerValoresRango(ExtraerRango(formula), dgv);
-                double resultado = valores.Any() ? valores.Min() : 0;
-                System.Diagnostics.Debug.WriteLine($"MIN: valores=[{string.Join(",", valores)}], resultado={resultado}");
+                System.Diagnostics.Debug.WriteLine($"=== INICIO EvaluarMin: '{formula}' ===");
+
+                string rango = ExtraerRango(formula);
+                if (string.IsNullOrEmpty(rango))
+                {
+                    System.Diagnostics.Debug.WriteLine("MIN: Rango vacío o inválido");
+                    return double.NaN;
+                }
+
+                var valoresValidos = ObtenerValoresValidosParaOperacion(rango, dgv);
+
+                if (!valoresValidos.Any())
+                {
+                    System.Diagnostics.Debug.WriteLine("MIN: No hay valores válidos");
+                    return 0;
+                }
+
+                System.Diagnostics.Debug.WriteLine($"MIN: Valores válidos: [{string.Join(", ", valoresValidos)}]");
+
+                double resultado = valoresValidos.Min();
+                System.Diagnostics.Debug.WriteLine($"MIN: Resultado final = {resultado}");
                 return resultado;
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Error en EvaluarMin: {ex.Message}");
-                return 0;
+                System.Diagnostics.Debug.WriteLine($"ERROR en EvaluarMin: {ex.Message}");
+                return double.NaN;
             }
         }
+
+        private static List<double> ObtenerValoresValidosParaOperacion(string rango, DataGridView dgv)
+        {
+            var valoresValidos = new List<double>();
+
+            try
+            {
+                if (string.IsNullOrWhiteSpace(rango))
+                    return valoresValidos;
+
+                System.Diagnostics.Debug.WriteLine($"Obteniendo valores válidos para rango: {rango}");
+
+                if (rango.Contains(":"))
+                {
+                    var partes = rango.Split(':');
+                    if (partes.Length != 2) return valoresValidos;
+
+                    string celdaInicio = partes[0].Trim();
+                    string celdaFin = partes[1].Trim();
+
+                    if (!ParseCelda(celdaInicio, out int colIni, out int filaIni) ||
+                        !ParseCelda(celdaFin, out int colFin, out int filaFin))
+                    {
+                        return valoresValidos;
+                    }
+
+                    filaIni--;
+                    filaFin--;
+
+                    int minFila = Math.Min(filaIni, filaFin);
+                    int maxFila = Math.Max(filaIni, filaFin);
+                    int minCol = Math.Min(colIni, colFin);
+                    int maxCol = Math.Max(colIni, colFin);
+
+                    for (int f = minFila; f <= maxFila; f++)
+                    {
+                        for (int c = minCol; c <= maxCol; c++)
+                        {
+                            if (c >= 0 && c < dgv.Columns.Count && f >= 0 && f < dgv.Rows.Count)
+                            {
+                                var celda = dgv[c, f];
+
+                                if (celda.Value != null && !string.IsNullOrWhiteSpace(celda.Value.ToString()))
+                                {
+                                    string valorTexto = celda.Value.ToString();
+                                    double valor = ConvertirTextoANumero(valorTexto);
+
+                                    if (!double.IsNaN(valor) && !double.IsInfinity(valor))
+                                    {
+                                        valoresValidos.Add(valor);
+                                        System.Diagnostics.Debug.WriteLine($"Valor válido [{ColumnToLetter(c)}{f + 1}] = {valorTexto} -> {valor}");
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    var referencias = rango.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries);
+
+                    foreach (var celda in referencias)
+                    {
+                        string celdaTrim = celda.Trim();
+                        double valor = ObtenerValorCelda(celdaTrim, dgv);
+
+                        if (!double.IsNaN(valor) && !double.IsInfinity(valor))
+                        {
+                            valoresValidos.Add(valor);
+                            System.Diagnostics.Debug.WriteLine($"Referencia válida {celdaTrim} -> {valor}");
+                        }
+                    }
+                }
+
+                System.Diagnostics.Debug.WriteLine($"Total valores válidos: {valoresValidos.Count} -> [{string.Join(", ", valoresValidos)}]");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error en ObtenerValoresValidosParaOperacion: {ex.Message}");
+            }
+
+            return valoresValidos;
+        }
+
         private static List<double> ObtenerValoresRango(string rango, DataGridView dgv)
         {
             var valores = new List<double>();
@@ -317,7 +701,7 @@ namespace Excel
                             }
                             else
                             {
-                                valores.Add(0); 
+                                valores.Add(0);
                                 System.Diagnostics.Debug.WriteLine($"Celda fuera de rango [{c},{f}] -> 0");
                             }
                         }
@@ -374,7 +758,7 @@ namespace Excel
                 {
                     col = col * 26 + (columnaStr[j] - 'A' + 1);
                 }
-                col--; 
+                col--;
 
                 if (!int.TryParse(filaStr, out fila) || fila <= 0)
                     return false;
@@ -388,6 +772,7 @@ namespace Excel
                 return false;
             }
         }
+
         private static string ColumnToLetter(int col)
         {
             string result = "";
@@ -398,14 +783,35 @@ namespace Excel
             }
             return result;
         }
+
         private static string ExtraerRango(string formula)
         {
-            int inicio = formula.IndexOf('(') + 1;
-            int fin = formula.LastIndexOf(')');
-            string rango = (inicio >= 0 && fin > inicio) ? formula.Substring(inicio, fin - inicio) : "";
-            System.Diagnostics.Debug.WriteLine($"ExtraerRango({formula}) -> {rango}");
-            return rango;
+            try
+            {
+                System.Diagnostics.Debug.WriteLine($"ExtraerRango entrada: '{formula}'");
+
+                int inicio = formula.IndexOf('(');
+                int fin = formula.LastIndexOf(')');
+
+                System.Diagnostics.Debug.WriteLine($"Posición '(': {inicio}, Posición ')': {fin}");
+
+                if (inicio == -1 || fin == -1 || fin <= inicio)
+                {
+                    System.Diagnostics.Debug.WriteLine("ERROR: Paréntesis inválidos");
+                    return string.Empty;
+                }
+
+                string rango = formula.Substring(inicio + 1, fin - inicio - 1).Trim();
+                System.Diagnostics.Debug.WriteLine($"ExtraerRango resultado: '{rango}'");
+                return rango;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"ERROR en ExtraerRango: {ex.Message}");
+                return string.Empty;
+            }
         }
+
         private static double EvaluarExpresion(string expresion)
         {
             try
@@ -418,18 +824,85 @@ namespace Excel
                     return 0;
                 }
 
+                // Verificar división por cero de manera más robusta
+                if (ContieneDivisionPorCero(expresion))
+                {
+                    System.Diagnostics.Debug.WriteLine("División por cero detectada en expresión");
+                    return double.NaN;
+                }
+
                 var dt = new DataTable();
                 var resultado = Convert.ToDouble(dt.Compute(expresion, null));
+
+                if (double.IsInfinity(resultado) || double.IsNaN(resultado))
+                {
+                    System.Diagnostics.Debug.WriteLine($"Resultado inválido: {resultado}");
+                    return double.NaN;
+                }
 
                 System.Diagnostics.Debug.WriteLine($"Resultado de la expresión: {resultado}");
                 return resultado;
             }
+            catch (DivideByZeroException)
+            {
+                System.Diagnostics.Debug.WriteLine("División por cero capturada");
+                return double.NaN;
+            }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error en EvaluarExpresion({expresion}): {ex.Message}");
-                System.Diagnostics.Debug.WriteLine($"StackTrace: {ex.StackTrace}");
                 return double.NaN;
             }
         }
-    }
+
+        private static bool ContieneDivisionPorCero(string expresion)
+        {
+            try
+            {
+                // Buscar patrones de división por cero
+                var patronesDivisionCero = new[]
+                {
+                @"/\s*0+(\s|$|\+|\-|\*|/)",
+                @"/\s*0+\.0*(\s|$|\+|\-|\*|/)",
+                @"/\s*0*\.0+(\s|$|\+|\-|\*|/)"
+            };
+
+                foreach (var patron in patronesDivisionCero)
+                {
+                    if (Regex.IsMatch(expresion, patron))
+                    {
+                        return true;
+                    }
+                }
+
+                // Verificación adicional: dividir la expresión por operadores de división
+                string[] partes = expresion.Split('/');
+                if (partes.Length > 1)
+                {
+                    for (int i = 1; i < partes.Length; i++)
+                    {
+                        string divisor = partes[i].Trim();
+
+                        // Extraer solo la parte numérica al inicio del divisor
+                        var match = Regex.Match(divisor, @"^[^+\-*/()]+");
+                        if (match.Success)
+                        {
+                            string valorDivisor = match.Value.Trim();
+                            if (double.TryParse(valorDivisor, out double val) && Math.Abs(val) < double.Epsilon)
+                            {
+                                return true;
+                            }
+                        }
+                    }
+                }
+
+                return false;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error en ContieneDivisionPorCero: {ex.Message}");
+                return false;
+            }
+        }
+    }  
 }

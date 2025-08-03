@@ -103,10 +103,15 @@ namespace Excel
 
             var menuFormulas = new ToolStripMenuItem("Fórmulas");
             menuFormulas.DropDownItems.Add("Suma", null, (s, e) => Formulas.InsertarFormula("SUMA", dgvHoja));
+            menuFormulas.DropDownItems.Add("Resta", null, (s, e) => Formulas.InsertarFormula("RESTA", dgvHoja));
+            menuFormulas.DropDownItems.Add("Multiplicar", null, (s, e) => Formulas.InsertarFormula("MULTIPLICAR", dgvHoja));
+            menuFormulas.DropDownItems.Add("Dividir", null, (s, e) => Formulas.InsertarFormula("DIVIDIR", dgvHoja));
+
             menuFormulas.DropDownItems.Add("Promedio", null, (s, e) => Formulas.InsertarFormula("PROMEDIO", dgvHoja));
             menuFormulas.DropDownItems.Add("Máximo", null, (s, e) => Formulas.InsertarFormula("MAX", dgvHoja));
             menuFormulas.DropDownItems.Add("Mínimo", null, (s, e) => Formulas.InsertarFormula("MIN", dgvHoja));
             menuFormulas.DropDownItems.Add("Contar", null, (s, e) => Formulas.InsertarFormula("COUNT", dgvHoja));
+
 
             menuStrip.Items.AddRange(new ToolStripItem[] { menuArchivo, menuEdicion, menuInsertar, menuFormulas });
             this.MainMenuStrip = menuStrip;

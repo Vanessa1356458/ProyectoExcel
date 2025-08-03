@@ -91,7 +91,6 @@ namespace Excel
 
             dgvHoja.Invalidate();
         }
-
         private void ManipularSeleccionControl(int col, int fila)
         {
             Point celda = new Point(col, fila);
@@ -102,7 +101,6 @@ namespace Excel
 
             ActualizarSeleccionVisual();
         }
-
         public void DibujarMarcoSeleccion(Graphics g)
         {
             if (mostrarMarcoSeleccion && !rectanguloSeleccion.IsEmpty)
@@ -216,7 +214,6 @@ namespace Excel
         {
             return $"{(char)('A' + columna)}{fila + 1}";
         }
-
         public void InsertarFuncionFormula(TextBox txtFormula, string funcion)
         {
             if (dgvHoja.SelectedCells.Count > 1)
