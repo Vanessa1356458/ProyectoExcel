@@ -50,23 +50,7 @@ namespace Excel
                 }
                 else
                 {
-                    if (tipoFormula.ToUpper().Contains("DIVIDIR") ||
-                        tipoFormula.ToUpper().Contains("DIVISION") ||
-                        tipoFormula.ToUpper().Contains("DIVIDE"))
-                    {
-                        MessageBox.Show("No es válido dividir por cero.", "Error de División",
-                                      MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                        celdaDestino.Value = "#DIV/0!";
-                        System.Diagnostics.Debug.WriteLine("Error de división por cero mostrado");
-                    }
-                    else
-                    {
-                        celdaDestino.Value = "#ERROR";
-                        System.Diagnostics.Debug.WriteLine("Error genérico mostrado");
-                    }
-
-                    celdaDestino.Style.ForeColor = Color.Red;
-                    celdaDestino.Tag = formulaCompleta;
+                    ManejarErrorFormula(celdaDestino, formulaCompleta, tipoFormula);
                 }
 
                 dgv.CurrentCell = celdaDestino;
@@ -79,6 +63,35 @@ namespace Excel
                               MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
+        private static void ManejarErrorFormula(DataGridViewCell celdaDestino, string formulaCompleta, string tipoFormula)
+        {
+            if (EsOperacionDivision(tipoFormula))
+            {
+                MessageBox.Show("No es válido dividir por cero.", "Error de División",
+                              MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                celdaDestino.Value = "#DIV/0!";
+                System.Diagnostics.Debug.WriteLine("Error de división por cero mostrado");
+            }
+            else
+            {
+                celdaDestino.Value = "#ERROR";
+                System.Diagnostics.Debug.WriteLine("Error genérico mostrado");
+            }
+
+            celdaDestino.Style.ForeColor = Color.Red;
+            celdaDestino.Tag = formulaCompleta;
+        }
+        private static bool EsOperacionDivision(string tipoFormula)
+        {
+            string formulaUpper = tipoFormula.ToUpper();
+            return formulaUpper.Contains("DIVIDIR") ||
+                   formulaUpper.Contains("DIVISION") ||
+                   formulaUpper.Contains("DIVIDE");
+        }
+        private static bool EsDivisionPorCero(double divisor)
+        {
+            return Math.Abs(divisor) < double.Epsilon;
+        }
         private static DataGridViewCell EncontrarCeldaDestino(DataGridView dgv, string rango)
         {
             try
@@ -90,7 +103,7 @@ namespace Excel
 
                     if (ParseCelda(celdaFin, out int col, out int fila))
                     {
-                        fila--; 
+                        fila--;
                         int filaDestino = fila + 1;
                         while (filaDestino < dgv.Rows.Count &&
                                dgv[col, filaDestino].Value != null &&
@@ -111,7 +124,7 @@ namespace Excel
                 {
                     if (ParseCelda(rango, out int col, out int fila))
                     {
-                        fila--; 
+                        fila--;
                         int filaDestino = Math.Min(fila + 1, dgv.Rows.Count - 1);
                         return dgv[col, filaDestino];
                     }
@@ -213,7 +226,7 @@ namespace Excel
                 {
                     System.Diagnostics.Debug.WriteLine($"DIVIDIR: Dividiendo {resultado} / {valoresValidos[i]}");
 
-                    if (Math.Abs(valoresValidos[i]) < double.Epsilon) 
+                    if (EsDivisionPorCero(valoresValidos[i]))
                     {
                         System.Diagnostics.Debug.WriteLine("DIVIDIR: División por cero detectada");
                         return double.NaN;
@@ -804,12 +817,6 @@ namespace Excel
                     return 0;
                 }
 
-                if (ContieneDivisionPorCero(expresion))
-                {
-                    System.Diagnostics.Debug.WriteLine("División por cero detectada en expresión");
-                    return double.NaN;
-                }
-
                 var dt = new DataTable();
                 var resultado = Convert.ToDouble(dt.Compute(expresion, null));
 
@@ -824,7 +831,7 @@ namespace Excel
             }
             catch (DivideByZeroException)
             {
-                System.Diagnostics.Debug.WriteLine("División por cero capturada");
+                System.Diagnostics.Debug.WriteLine("División por cero capturada en expresión");
                 return double.NaN;
             }
             catch (Exception ex)
@@ -833,51 +840,5 @@ namespace Excel
                 return double.NaN;
             }
         }
-        private static bool ContieneDivisionPorCero(string expresion)
-        {
-            try
-            {
-                var patronesDivisionCero = new[]
-                {
-                @"/\s*0+(\s|$|\+|\-|\*|/)",
-                @"/\s*0+\.0*(\s|$|\+|\-|\*|/)",
-                @"/\s*0*\.0+(\s|$|\+|\-|\*|/)"
-            };
-
-                foreach (var patron in patronesDivisionCero)
-                {
-                    if (Regex.IsMatch(expresion, patron))
-                    {
-                        return true;
-                    }
-                }
-
-                string[] partes = expresion.Split('/');
-                if (partes.Length > 1)
-                {
-                    for (int i = 1; i < partes.Length; i++)
-                    {
-                        string divisor = partes[i].Trim();
-
-                        var match = Regex.Match(divisor, @"^[^+\-*/()]+");
-                        if (match.Success)
-                        {
-                            string valorDivisor = match.Value.Trim();
-                            if (double.TryParse(valorDivisor, out double val) && Math.Abs(val) < double.Epsilon)
-                            {
-                                return true;
-                            }
-                        }
-                    }
-                }
-
-                return false;
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error en ContieneDivisionPorCero: {ex.Message}");
-                return false;
-            }
-        }
-    }  
+    }
 }
