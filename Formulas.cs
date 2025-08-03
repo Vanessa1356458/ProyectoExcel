@@ -90,7 +90,7 @@ namespace Excel
         }
         private static bool EsDivisionPorCero(double divisor)
         {
-            return Math.Abs(divisor) < double.Epsilon;
+            return divisor == 0.0;
         }
         private static DataGridViewCell EncontrarCeldaDestino(DataGridView dgv, string rango)
         {
@@ -226,7 +226,7 @@ namespace Excel
                 {
                     System.Diagnostics.Debug.WriteLine($"DIVIDIR: Dividiendo {resultado} / {valoresValidos[i]}");
 
-                    if (EsDivisionPorCero(valoresValidos[i]))
+                    if (valoresValidos[i] == 0.0)
                     {
                         System.Diagnostics.Debug.WriteLine("DIVIDIR: División por cero detectada");
                         return double.NaN;
