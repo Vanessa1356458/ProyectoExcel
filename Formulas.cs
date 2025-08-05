@@ -88,10 +88,6 @@ namespace Excel
                    formulaUpper.Contains("DIVISION") ||
                    formulaUpper.Contains("DIVIDE");
         }
-        private static bool EsDivisionPorCero(double divisor)
-        {
-            return divisor == 0.0;
-        }
         private static DataGridViewCell EncontrarCeldaDestino(DataGridView dgv, string rango)
         {
             try
