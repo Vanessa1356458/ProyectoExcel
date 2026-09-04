@@ -32,7 +32,7 @@ Aplicación de escritorio tipo hoja de cálculo desarrollada con **C#** y **Wind
 
 1. Clonar el repositorio
    ```
-   git clone https://github.com/Vanessa1356458/ProyectoExcel.git
+   git clone https://github.com/cvanessa-dev/ProyectoExcel.git
    cd ProyectoExcel
    ```
 2. Abrir el archivo `Excel.sln` con Visual Studio
@@ -56,4 +56,4 @@ Aplicación de escritorio tipo hoja de cálculo desarrollada con **C#** y **Wind
 
 ## 👩‍💻 Autora
 
-Vanessa Rodriguez - Ingenieria en Sistemas
+Vanessa Rodriguez - Teoria de Lenguaje - Ingenieria en Sistemas
